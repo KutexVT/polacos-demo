@@ -3,6 +3,7 @@ import helmet from "helmet";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { pool, one, check } from "./db.js";
+import { seedDemo } from "./demo.js";
 import { migrate } from "./migrate.js";
 import { bootstrap, authenticate, authRoutes } from "./auth.js";
 import { routes } from "./routes.js";
@@ -14,6 +15,7 @@ import { registerRoutes } from "./register.js";
 export async function createApp() {
   await migrate();
   await bootstrap();
+  await seedDemo();
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", 1);

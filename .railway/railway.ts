@@ -3,10 +3,10 @@ import { defineRailway, preserve, project, service } from "railway/iac";
 // This repository manages only its own resources in the environment. Other
 // repositories export their own partial name.
 // See https://docs.railway.com/infrastructure-as-code#multi-repo-projects
-export const partial = "polacos";
+export const partial = "polacos-demo";
 
 export default defineRailway(() => {
-  const polacos = service("polacos", {
+  const polacos = service("polacos-demo", {
     healthcheck: "/api/health",
     healthcheckTimeout: 120,
     env: {
@@ -20,7 +20,7 @@ export default defineRailway(() => {
     },
     // builder from CaC: "DOCKERFILE"
   });
-  return project("Polacos", {
+  return project("polacos-demo", {
     resources: [polacos],
   });
 });

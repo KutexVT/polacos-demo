@@ -1,3 +1,5 @@
+> Histórico heredado de la aplicación original. Los resultados de esta copia independiente se registran al final bajo «Copia de pruebas».
+
 # Verificación de entrega
 
 Fecha: **16 de noviembre de 2026**. URL: https://polacos-production.up.railway.app

@@ -333,3 +333,7 @@ Solicitud posterior del usuario: reproducir el funcionamiento de Bar Chana adapt
 ## Cambio posterior: administración estadística sin soporte
 
 Esta decisión reemplaza las funciones anteriores de soporte, notas y revisión de fichas comerciales por el administrador. El usuario pide retirar toda comunicación con soporte para dueños y polacos. El administrador queda exclusivamente con estadísticas de la plataforma y gestión de grupos/usuarios; su configuración personal se conserva desde el avatar. El servidor también impide recuperar las operaciones retiradas por rutas antiguas. Chats internos y cierres de dueño/polacos continúan. Detalle vigente en `ADMINISTRACION.md`.
+
+## Copia pública de pruebas · 20 de noviembre de 2026
+
+Repositorio y proyecto Railway independientes. Se conserva la aplicación actual y sus colores. Entrada con tres botones: Administrador con sus credenciales existentes, Dueño y Polaco sin contraseña. Se llena con datos ficticios y se conservan las ediciones. Gestión Neutral sirve de referencia para la entrada por perfil, no para eliminar las paletas. No modificar el acceso ni los datos de la instalación original.

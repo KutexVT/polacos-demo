@@ -40,6 +40,7 @@ page.on("pageerror", (e) => errors.push(e.message));
 await mkdir(".local/screenshots", { recursive: true });
 async function signIn(user, pw = password) {
   await page.goto(base);
+  await page.getByRole("button", { name: /^Administrador/ }).click();
   await page.getByLabel("Usuario", { exact: true }).fill(user);
   await page.getByLabel("Contraseña", { exact: true }).fill(pw);
   await page
@@ -56,7 +57,7 @@ async function signOut() {
   await page
     .getByRole("button", { name: "Cerrar sesión", exact: true })
     .click();
-  await page.getByRole("heading", { name: "Iniciar sesión" }).waitFor();
+  await page.getByRole("heading", { name: "Elige un perfil" }).waitFor();
 }
 async function api(path, body, method = body ? "POST" : "GET") {
   const r = await context.request.fetch(base + "/api" + path, {
@@ -817,7 +818,7 @@ try {
             "deployment",
             "list",
             "--service",
-            "polacos",
+            "polacos-demo",
             "--json",
           ])
         ).stdout,
@@ -838,7 +839,7 @@ try {
     await run("railway", [
       "redeploy",
       "--service",
-      "polacos",
+      "polacos-demo",
       "--yes",
       "--json",
     ]);

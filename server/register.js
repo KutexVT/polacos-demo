@@ -75,7 +75,7 @@ async function period(db, input) {
   );
   return { from: from.toISOString(), to: to.toISOString(), scope: b.scope };
 }
-async function snapshot(db, u, input) {
+export async function snapshot(db, u, input) {
   const range = await period(db, input);
   scopeFor(u, range.scope);
   const personal = range.scope === "personal" ? u.id : null;

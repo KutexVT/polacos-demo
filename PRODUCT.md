@@ -1,4 +1,4 @@
-# Polacos
+# Polacos · Pruebas
 <!-- impeccable:product-schema 1 -->
 ## Platform
 web
@@ -7,7 +7,7 @@ Delegada explícitamente por el usuario. React y Vite con Express y PostgreSQL. 
 ## Usuarios y propósito
 Administrador de plataforma, dueños de grupos y trabajadores que venden a crédito y cobran en Costa Rica. Los clientes son registros sin cuenta. El administrador consulta estadísticas de uso y cantidades de registros. Crea grupos y administra sus usuarios y cupos. No tiene soporte, conversaciones, notas, notificaciones ni acceso a fichas comerciales o cajas. La configuración personal queda accesible desde su avatar. Para dueños y polacos el flujo principal es cliente → compra → calendario → cobro confirmado.
 ## Restricciones
-El alcance acordado completo está en docs/REQUISITOS.md. Dinero exacto en CRC. Zona America/Costa_Rica. Aislamiento de grupos y permisos en servidor. Sin intereses ni pasarela. Datos de demostración únicamente en el grupo de pruebas autorizado por el usuario.
+El alcance acordado completo está en docs/REQUISITOS.md. Dinero exacto en CRC. Zona America/Costa_Rica. Aislamiento de grupos y permisos en servidor. Sin intereses ni pasarela. Esta copia usa exclusivamente datos ficticios en una base independiente. Dueño y Polaco son perfiles públicos compartidos con acceso directo. Administrador conserva usuario y contraseña. La muestra se crea una sola vez y no reinicia las ediciones.
 ## Accesibilidad
 Uso prioritario desde celular. Texto legible al aire libre, controles amplios, etiquetas y estados textuales.
 ## Principios

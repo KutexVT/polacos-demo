@@ -147,7 +147,15 @@ function App() {
         <p>Abriendo Polacos…</p>
       </div>
     );
-  if (!session) return <Login onLogin={loadSession} />;
+  if (!session)
+    return (
+      <Login
+        onLogin={async () => {
+          navigate("/");
+          await loadSession();
+        }}
+      />
+    );
   const { user } = session;
   const admin = user.role === "admin",
     manager = admin || user.role === "owner";
@@ -446,8 +454,24 @@ export function Palette({ current, onSelect }) {
   );
 }
 function Login({ onLogin }) {
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function enter(role) {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api("/entry", { method: "POST", body: { role } });
+      await onLogin();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
-    <div className="login">
+    <div className="login demo-login">
       <section className="login-story">
         <a className="brand">
           <span className="brand-mark">p</span>polacos.
@@ -459,32 +483,78 @@ function Login({ onLogin }) {
       </section>
       <section className="login-form">
         <span className="mobile-brand">polacos.</span>
-        <h2>Iniciar sesión</h2>
-        <Form
-          submit="Iniciar sesión"
-          onSubmit={async (values) => {
-            await api("/login", { method: "POST", body: values });
-            await onLogin();
-          }}
-        >
-          <Field
-            label="Usuario"
-            name="username"
-            autoComplete="username"
-            required
-            placeholder="Tu nombre de usuario"
-          />
-          <Field
-            label="Contraseña"
-            type="password"
-            name="password"
-            autoComplete="current-password"
-            required
-            placeholder="Tu contraseña"
-          />
-        </Form>
-        <p className="login-help">
-          Si necesitas recuperar tu acceso habla con el responsable de tu cuenta
+        <h2>Elige un perfil</h2>
+        <p className="demo-disclosure">
+          Versión de pruebas compartida con datos ficticios
+        </p>
+        <div className="entry-options">
+          <button
+            className={"entry-option " + (adminOpen ? "selected" : "")}
+            aria-expanded={adminOpen}
+            aria-controls="admin-login"
+            disabled={busy}
+            onClick={() => {
+              setAdminOpen(!adminOpen);
+              setError("");
+            }}
+          >
+            <strong>Administrador</strong>
+            <span>Estadísticas y grupos · Con contraseña</span>
+          </button>
+          <button
+            className="entry-option"
+            disabled={busy}
+            onClick={() => enter("owner")}
+          >
+            <strong>Dueño</strong>
+            <span>Inventario y equipo · Acceso directo</span>
+          </button>
+          <button
+            className="entry-option"
+            disabled={busy}
+            onClick={() => enter("polaco")}
+          >
+            <strong>Polaco</strong>
+            <span>Clientes y cobros · Acceso directo</span>
+          </button>
+        </div>
+        {busy && <p role="status">Entrando…</p>}
+        {error && (
+          <div className="error" role="alert">
+            {error}
+          </div>
+        )}
+        {adminOpen && (
+          <div id="admin-login" className="admin-login">
+            <h3>Acceso de administrador</h3>
+            <Form
+              submit="Iniciar sesión"
+              onSubmit={async (values) => {
+                await api("/login", { method: "POST", body: values });
+                await onLogin();
+              }}
+            >
+              <Field
+                label="Usuario"
+                name="username"
+                autoComplete="username"
+                required
+                placeholder="Tu nombre de usuario"
+              />
+              <Field
+                label="Contraseña"
+                type="password"
+                name="password"
+                autoComplete="current-password"
+                required
+                placeholder="Tu contraseña"
+              />
+            </Form>
+          </div>
+        )}
+        <p className="demo-warning">
+          Los cambios de Dueño y Polaco son visibles para quienes prueben la
+          página. Usa solo datos ficticios
         </p>
       </section>
     </div>

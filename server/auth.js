@@ -76,6 +76,42 @@ export async function authenticate(req, res, next) {
     next(e);
   }
 }
+async function limitIp(req, prefix = "ip") {
+  const ipKey = digest(prefix + "|" + req.ip);
+  const ipAttempts = await one(
+    pool,
+    "INSERT INTO login_attempts(key,attempts,reset_at) VALUES($1,1,now()+interval '15 minutes') ON CONFLICT(key) DO UPDATE SET attempts=CASE WHEN login_attempts.reset_at<now() THEN 1 ELSE login_attempts.attempts+1 END,reset_at=CASE WHEN login_attempts.reset_at<now() THEN now()+interval '15 minutes' ELSE login_attempts.reset_at END RETURNING attempts",
+    [ipKey],
+  );
+  check(
+    ipAttempts.attempts <= 120,
+    "Demasiados intentos desde esta conexión. Espera 15 minutos",
+    429,
+  );
+}
+async function startSession(req, res, user) {
+  const old = (req.headers.cookie || "")
+    .split(";")
+    .map((x) => x.trim())
+    .find((x) => x.startsWith("polacos="))
+    ?.slice(8);
+  if (old)
+    await pool.query("DELETE FROM sessions WHERE token_hash=$1", [digest(old)]);
+  await pool.query("DELETE FROM sessions WHERE expires_at<now()");
+  const token = randomBytes(32).toString("hex");
+  await pool.query(
+    "INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '7 days')",
+    [digest(token), user.id],
+  );
+  res.cookie("polacos", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: 7 * 86400000,
+    path: "/",
+  });
+  res.json({ user: publicUser(user) });
+}
 export function authRoutes(app) {
   app.post("/api/login", async (req, res) => {
     const { username, password } = req.body;
@@ -87,17 +123,7 @@ export function authRoutes(app) {
       "Usuario o contraseña incorrectos",
       401,
     );
-    const ipKey = digest("ip|" + req.ip);
-    const ipAttempts = await one(
-      pool,
-      "INSERT INTO login_attempts(key,attempts,reset_at) VALUES($1,1,now()+interval '15 minutes') ON CONFLICT(key) DO UPDATE SET attempts=CASE WHEN login_attempts.reset_at<now() THEN 1 ELSE login_attempts.attempts+1 END,reset_at=CASE WHEN login_attempts.reset_at<now() THEN now()+interval '15 minutes' ELSE login_attempts.reset_at END RETURNING attempts",
-      [ipKey],
-    );
-    check(
-      ipAttempts.attempts <= 120,
-      "Demasiados intentos desde esta conexión. Espera 15 minutos",
-      429,
-    );
+    await limitIp(req);
     const key = digest(req.ip + "|" + username.toLowerCase());
     const allowed = await tx(async (db) => {
       await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
@@ -123,20 +149,30 @@ export function authRoutes(app) {
     const dummy = "0".repeat(32) + ":" + "0".repeat(128);
     const valid = await verify(password, user?.password_hash || dummy);
     check(user && valid, "Usuario o contraseña incorrectos", 401);
-    const token = randomBytes(32).toString("hex");
-    await pool.query(
-      "INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '7 days')",
-      [digest(token), user.id],
-    );
     await pool.query("DELETE FROM login_attempts WHERE key=$1", [key]);
-    res.cookie("polacos", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 7 * 86400000,
-      path: "/",
-    });
-    res.json({ user: publicUser(user) });
+    await startSession(req, res, user);
+  });
+  // Only the two fixed demo profiles can bypass a password. Administrators use /login.
+  app.post("/api/entry", async (req, res) => {
+    check(
+      req.body &&
+        ["owner", "polaco"].includes(req.body.role) &&
+        Object.keys(req.body).length === 1,
+      "Elige Dueño o Polaco",
+      400,
+    );
+    await limitIp(req, "entry");
+    const user = await one(
+      pool,
+      "SELECT u.* FROM demo_state d JOIN users u ON u.id=CASE WHEN $1='owner' THEN d.owner_id ELSE d.polaco_id END WHERE d.id AND u.role=$1 AND u.deleted_at IS NULL",
+      [req.body.role],
+    );
+    check(
+      user,
+      "Este perfil de prueba no está disponible. El administrador puede restaurarlo desde Grupos",
+      404,
+    );
+    await startSession(req, res, user);
   });
   app.post("/api/logout", authenticate, async (req, res) => {
     await pool.query("DELETE FROM sessions WHERE token_hash=$1", [

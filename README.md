@@ -1,114 +1,72 @@
-# Polacos
+# Polacos · Pruebas
 
-Aplicación para grupos de venta a crédito en Costa Rica. Inventario con reservas, clientes, compras, calendarios, pagos, acceso temporal, chat y soporte. Moneda CRC y fechas comerciales en `America/Costa_Rica`.
+Copia independiente de [Polacos](https://github.com/KutexVT/polacos) para explorar la aplicación con datos ficticios. Sigue el patrón de acceso directo de Gestión Neutral y conserva las paletas, modo claro/oscuro y funciones de Polacos.
 
-**Producción:** https://polacos-production.up.railway.app
+**Demo:** https://polacos-demo-production.up.railway.app/
 
-Código: `/home/kutex/project/polacos`. Las credenciales iniciales de esta instalación están exclusivamente en `.local/ACCESO.md` con permisos `600`. Ese directorio está excluido de Git y del despliegue. No hay registro público ni contraseña predeterminada.
+**Código:** https://github.com/KutexVT/polacos-demo
 
-## Uso inicial
+## Entrada
 
-1. Entrar con el administrador y elegir una paleta. Desde **Grupos** crear el grupo, su dueño y los cupos autorizados.
-2. El dueño crea sus polacos en **Usuarios** y productos en **Inventario**. Los nombres de los grupos son etiquetas internas del administrador. Dueños y polacos no ven esa identidad ni pueden configurarla.
-3. Crear un cliente y su compra. Revisar el calendario antes de confirmar. Un precio propuesto por un polaco reserva unidades hasta que el dueño decida.
-4. En **Cobros** abrir una compra y registrar pagos de cuota o abonos al capital. El historial conserva correcciones y anulaciones.
-5. **Solicitudes** permite resolver precios y compartir registros con caducidad. **Conversaciones** incluye chat privado, grupos y Soporte.
+- **Administrador:** abre el acceso con usuario y contraseña. Solo consulta estadísticas y administra grupos/cuentas. Las credenciales se configuran en Railway y no están en el repositorio.
+- **Dueño:** entra directamente en el dueño del equipo de demostración.
+- **Polaco:** entra directamente en el trabajador principal del mismo equipo.
 
-El dueño opera sobre sus clientes y los de su equipo sin suplantar usuarios. El administrador selecciona grupo o consulta toda la plataforma. Los clientes comerciales no tienen cuenta.
+Dueño y Polaco son perfiles públicos compartidos. Cualquier visitante puede cambiar sus datos ficticios. No son una identificación personal ni un espacio privado. No usar clientes, teléfonos, documentos, contraseñas reutilizadas ni operaciones reales dentro de esos perfiles.
 
-En **Configuración → Colores de tu cuenta** se elige modo Claro u Oscuro y una de las cuatro paletas. Ambas preferencias se guardan por usuario y se recuperan en otros dispositivos; las cuentas sin una selección previa conservan el modo claro.
+La edición original mantiene su autenticación y su base separadas. Esta copia no se conecta a esa base ni importa sus clientes, operaciones o conversaciones.
 
-## Ejecutar localmente
+## Datos de ejemplo
 
-Requisitos: Node.js 24, npm, PostgreSQL 16 o superior. El despliegue usa Node 24 y PostgreSQL 18. La base local de esta entrega está en el contenedor `polacos-db` y puerto `127.0.0.1:55439`.
+La primera ejecución crea 2 grupos, 8 cuentas de demostración, 60 productos, 104 clientes, 208 compras, pagos por efectivo/SINPE/tarjeta/mixtos, solicitudes de precio y acceso, 16 chats con 160 mensajes, movimientos y 6 cierres de caja. Hay compras pagadas, activas, pendientes y canceladas con calendarios y saldos coherentes.
 
-Para la instalación existente:
+Los datos se generan una sola vez en una transacción. Reiniciar o desplegar conserva las ediciones y no duplica la muestra. No hay reinicio automático ni botón de borrado. La siembra rechaza una base con grupos existentes que no tenga el marcador de esta demo.
+
+## Funciones conservadas
+
+Clientes y catálogo en cuadrículas, inventario con reservas, aprobación de precios, compras a crédito, calendarios, cuotas y abonos, permisos entre trabajadores, chats internos y adjuntos, notificaciones, reportes, papelera, grupos/cupos, estadísticas de uso, contador de efectivo y cierres revisados por el dueño. Dinero en CRC y zona `America/Costa_Rica`.
+
+Las preferencias de color y modo pertenecen al perfil compartido. Cambiarlas también cambia lo que verá el siguiente visitante de ese mismo perfil. Soporte técnico continúa retirado, igual que en la versión original actual.
+
+## Desarrollo
+
+Node.js 24 y PostgreSQL 16 o superior. Crear una base exclusiva y copiar `.env.example` a `.env`. Configurar una contraseña administrativa de al menos 12 caracteres y una URL PostgreSQL propia. Nunca usar la URL de la base original.
 
 ```sh
-cd /home/kutex/project/polacos
-docker start polacos-db
 npm ci
 npm run build
-npm run migrate
 npm run dev
 ```
 
-Abrir http://localhost:3210. `npm run dev` inicia Express con `.env`; sirve el frontend compilado. Después de editar el frontend ejecutar `npm run build`. Para reconstrucción continua puede ejecutarse `npm run build -- --watch` en otra terminal.
+Abrir http://localhost:3211/. Las migraciones, el administrador inicial y la muestra se preparan al arrancar. El administrador se crea solo si todavía no existe; modificar la variable de arranque no restablece su contraseña.
 
-Para una instalación nueva copiar `.env.example` a `.env`, usar una base PostgreSQL propia y configurar una contraseña privada de al menos 12 caracteres para `ADMIN_PASSWORD`. No reutilizar credenciales de producción. `DATABASE_URL` debe corresponder a esa base. No subir `.env` al repositorio.
-
-| Variable | Uso |
-| --- | --- |
-| `DATABASE_URL` | Conexión privada a PostgreSQL; obligatoria |
-| `ADMIN_USERNAME` | Usuario administrador inicial |
-| `ADMIN_PASSWORD` | Contraseña inicial privada de 12 a 128 caracteres |
-| `ADMIN_NAME` | Nombre visible del administrador inicial |
-| `APP_ORIGIN` | Origen exacto de la web, sin `/` final |
-| `PORT` | 3210 local; 3000 en Railway |
-| `NODE_ENV` | `development` local; `production` para cookies seguras HTTPS |
-
-El administrador se crea una sola vez cuando no existe otro. Cambiar las variables después no restablece su contraseña. La contraseña se cambia desde Configuración. Dueños y administrador pueden restablecer las cuentas que administran, nunca leer contraseñas guardadas.
-
-## Arquitectura y almacenamiento
-
-React + Vite para la interfaz; Express 5 para API, sesiones y tareas; PostgreSQL para todos los datos. Un solo servicio sirve la web y API del mismo origen. Las versiones instaladas están fijadas en `package-lock.json`.
-
-- `server/money.js`: céntimos enteros, calendarios y aplicación de pagos
-- `server/access.js`: límites de grupo y permisos de cada registro
-- `server/routes.js`: cuentas, inventario, compras y pagos
-- `server/collaboration.js`: accesos temporales, chat y archivos
-- `server/lifecycle.js`: retirada, restauración, purga y recordatorios
-- `server/reports.js`: estadísticas calculadas con los registros existentes
-- `migrations/`: SQL versionado con registro de aplicación y bloqueo de concurrencia
-- `src/`: interfaz adaptable y componentes de formularios
-
-Las fotos, audios y adjuntos se guardan como `BYTEA` en PostgreSQL, hasta **10 MiB por archivo**. No dependen del disco efímero de Express. Los archivos se validan por contenido y se entregan tras comprobar autorización. No hay URL pública directa a un adjunto. Los archivos abandonados sin referencias se purgan después de un día.
-
-Las contraseñas usan scrypt. Las sesiones aleatorias se almacenan con hash en la base; cookie HttpOnly, SameSite Strict y Secure en producción. Hay límites de intentos, validación de origen y tipo de petición, validación de entradas y consultas parametrizadas.
-
-Los cambios de negocio usan transacciones y un bloqueo asesor PostgreSQL para impedir carreras de cupos, stock y pagos. Las claves de idempotencia evitan duplicaciones por reintento. Este bloqueo serializa las escrituras de toda la instalación: es una decisión de simplicidad documentada, no una afirmación de capacidad ilimitada.
-
-## Migraciones y tareas
-
-El servidor aplica migraciones pendientes al arrancar. `npm run migrate` permite aplicarlas por separado. Añadir nuevos archivos SQL ordenados; no editar una migración ya aplicada.
-
-La purga y los recordatorios se ejecutan antes de aceptar tráfico y cada 60 segundos. El estado vive en PostgreSQL. No necesitan un navegador abierto. Las transacciones, el bloqueo y las claves únicas evitan efectos duplicados con varias instancias. Después de una caída el siguiente arranque procesa los vencimientos pendientes.
-
-La papelera permite restaurar durante 30 días. Al vencer se eliminan datos y auditoría asociados, incluidas las imágenes y mensajes correspondientes. Los clientes transferidos y los mensajes de otras personas permanecen. Ver [decisiones](docs/DECISIONES.md) y [operación y copias](docs/OPERACION.md).
-
-## Despliegue en Railway
-
-Proyecto propio **Polacos** (`73a31525-8905-43da-b4c4-c7cb591bf0a4`), entorno `production`, servicios `polacos` y `Postgres`. La base usa volumen persistente. No utiliza recursos de otros proyectos.
-
-El `Dockerfile` compila la interfaz y arranca como usuario sin privilegios. `DATABASE_URL` en el servicio web referencia `${{Postgres.DATABASE_URL}}`. `APP_ORIGIN` apunta a la URL pública. Comprobación de salud: `/api/health`, que consulta PostgreSQL.
-
-```sh
-railway whoami
-railway status
-railway config plan
-railway up --service polacos --detach
-railway deployment list --service polacos --json
-curl --fail https://polacos-production.up.railway.app/api/health
-```
-
-La configuración parcial de `.railway/railway.ts` administra únicamente el servicio web y conserva las variables ya guardadas mediante `preserve()`. Si cambia esa configuración revisar el plan y aplicar con `railway config apply --yes`. El SDK `railway` es una dependencia de desarrollo para IaC. Subir código no equivale a un despliegue correcto: comprobar estado `SUCCESS`, salud, assets y los flujos públicos.
+Express sirve el frontend compilado. Para reconstrucción continua usar `npm run build -- --watch` en otra terminal. Vite dispone de proxy al backend local en 3211.
 
 ## Pruebas
 
 ```sh
 npm test
-npm run build
 npm run test:e2e
+npm run build
 git diff --check
 ```
 
-La integración crea grupos con nombres y usuarios únicos y los elimina al terminar. El navegador usa Chromium en `/usr/bin/chromium`; puede indicarse otra ruta con `CHROMIUM_PATH`. Incluye vistas de 1440, 820 y 390 píxeles y grabación con micrófono simulado. Las capturas quedan en `.local/screenshots`.
+Las suites de integración y navegador crean grupos QA propios y los limpian. La suite de demo también comprueba coherencia de saldos/stock, siembra sin duplicados, persistencia de ediciones, acceso directo limitado a los dos perfiles, revocación de la sesión al cambiar de perfil y protección del administrador. Ejecutarlas solamente contra una base de pruebas de esta copia.
 
-Para verificar un entorno remoto se usan `TEST_BASE_URL`, las credenciales de su administrador y `DATABASE_URL` de **ese mismo entorno**. Las pruebas requieren conexión directa a PostgreSQL para limpiar sus grupos y controlar el reloj de purga. El archivo privado `.local/production.env` se preparó para la verificación de esta entrega. El acceso TCP temporal se cierra al concluir; recrearlo antes de volver a ejecutar esas pruebas.
+El navegador de pruebas usa Chromium en `/usr/bin/chromium` o `CHROMIUM_PATH`. Sus capturas y logs privados quedan en `.local/`. Los tamaños de teléfono son simulados; no representan pruebas en iOS o en un teléfono físico.
+
+## Railway
+
+Proyecto `polacos-demo` (`00fabb15-6621-46c3-8946-1710ed082a2e`). Servicios `polacos-demo` y `Postgres`, ambos exclusivos de esta copia. `DATABASE_URL` referencia `${{Postgres.DATABASE_URL}}`, `APP_ORIGIN` corresponde al enlace público y `NODE_ENV=production` activa cookies HTTPS.
 
 ```sh
-node --env-file=.local/production.env --test --test-concurrency=1 tests/*.test.js
-VERIFY_REDEPLOY=1 node --env-file=.local/production.env tests/browser.mjs
+railway link --project 00fabb15-6621-46c3-8946-1710ed082a2e --environment production --service polacos-demo
+railway status
+railway up --service polacos-demo --detach
+railway deployment list --service polacos-demo --json
+curl --fail https://polacos-demo-production.up.railway.app/api/health
 ```
 
-`VERIFY_REDEPLOY=1` **redespliega realmente el servicio `polacos` del proyecto enlazado** y comprueba que sesión, texto y bytes de imagen, audio y archivo permanezcan. Omitirlo en las pruebas normales. Ver resultados y límites comprobados en [VERIFICACION.md](docs/VERIFICACION.md).
+El Dockerfile compila y ejecuta como usuario sin privilegios. Antes de atender aplica migraciones y siembra. La configuración parcial de `.railway/railway.ts` conserva los secretos existentes con `preserve()`. Los secretos nunca van en argumentos, código ni GitHub.
+
+La publicación usa `railway up`; el repositorio de GitHub conserva el código. Verificar `SUCCESS`, salud, assets y los tres accesos después de desplegar. [Operación](docs/OPERACION.md), [administración](docs/ADMINISTRACION.md) y [caja](docs/CAJA.md).
