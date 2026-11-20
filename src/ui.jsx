@@ -166,7 +166,7 @@ export function Form({
     <form
       onSubmit={async (e) => {
         e.preventDefault();
-        if (busy) return;
+        if (busy || disabled) return;
         const values = Object.fromEntries(new FormData(e.currentTarget));
         setBusy(true);
         setError("");

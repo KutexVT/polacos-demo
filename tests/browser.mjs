@@ -38,15 +38,35 @@ const page = await context.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 await mkdir(".local/screenshots", { recursive: true });
-async function signIn(user, pw = password) {
+async function signIn(user, pw = password, checkPending = false) {
   await page.goto(base);
   await page.getByRole("button", { name: /^Administrador/ }).click();
   await page.getByLabel("Usuario", { exact: true }).fill(user);
   await page.getByLabel("Contraseña", { exact: true }).fill(pw);
+  let resume;
+  if (checkPending) {
+    const gate = new Promise((resolve) => {
+      resume = resolve;
+    });
+    await page.route("**/api/login", async (route) => {
+      await gate;
+      await route.continue();
+    });
+  }
   await page
     .getByRole("button", { name: "Iniciar sesión", exact: true })
     .click();
+  if (checkPending) {
+    try {
+      for (const label of [/^Administrador/, /^Dueño /, /^Polaco /])
+        assert(await page.getByRole("button", { name: label }).isDisabled());
+      await page.screenshot({ path: ".local/demo-admin-pending.png", fullPage: true });
+    } finally {
+      resume();
+    }
+  }
   await page.getByRole("heading", { name: /Hola |Estadísticas/ }).waitFor();
+  if (checkPending) await page.unroute("**/api/login");
   if (await page.getByRole("dialog").isVisible())
     await page
       .getByRole("button", { name: "Continuar con estos colores" })
@@ -91,7 +111,30 @@ try {
     fullPage: true,
     animations: "disabled",
   });
-  await signIn(process.env.ADMIN_USERNAME, process.env.ADMIN_PASSWORD);
+  // A pending direct entry also locks the expanded password form.
+  for (const label of [/^Dueño /, /^Polaco /]) {
+    await page.getByRole("button", { name: /^Administrador/ }).click();
+    let resume;
+    const gate = new Promise((resolve) => {
+      resume = resolve;
+    });
+    await page.route("**/api/entry", async (route) => {
+      await gate;
+      await route.continue();
+    });
+    await page.getByRole("button", { name: label }).click();
+    try {
+      assert(
+        await page.locator(".admin-login button[type=submit]").isDisabled(),
+      );
+    } finally {
+      resume();
+    }
+    await page.getByRole("heading", { name: /^Hola / }).waitFor();
+    await page.unroute("**/api/entry");
+    await signOut();
+  }
+  await signIn(process.env.ADMIN_USERNAME, process.env.ADMIN_PASSWORD, true);
   await page.goto(base + "/groups");
   await page.getByRole("button", { name: "Crear grupo", exact: true }).click();
   await page.getByLabel("Nombre del grupo").fill("QA Navegador " + suffix);

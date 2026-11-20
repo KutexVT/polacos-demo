@@ -529,9 +529,16 @@ function Login({ onLogin }) {
             <h3>Acceso de administrador</h3>
             <Form
               submit="Iniciar sesión"
+              disabled={busy}
               onSubmit={async (values) => {
-                await api("/login", { method: "POST", body: values });
-                await onLogin();
+                if (busy) return;
+                setBusy(true);
+                try {
+                  await api("/login", { method: "POST", body: values });
+                  await onLogin();
+                } finally {
+                  setBusy(false);
+                }
               }}
             >
               <Field
