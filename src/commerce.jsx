@@ -830,7 +830,7 @@ function ProductForm({ product: p, onClose }) {
           <strong>
             {price == null ? "Completa el costo y el porcentaje" : money(price)}
           </strong>
-          <small>Redondeado al múltiplo de ₡5 más cercano</small>
+          <small>(Redondeado)</small>
         </div>
         {p?.purchase_cost == null && p && (
           <p className="muted">
