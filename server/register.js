@@ -382,8 +382,8 @@ export function registerRoutes(app) {
         fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
         opening: amount,
         counts: z.record(z.string(), z.number().int().min(0).max(1000000)),
-        actual_sinpe: amount.nullable(),
-        actual_card: amount.nullable(),
+        actual_sinpe: amount.nullable().optional(),
+        actual_card: amount.nullable().optional(),
         note: z.string().trim().max(1000),
         supersedes: uuid.nullable(),
         confirmed: z.literal(true),
@@ -407,26 +407,15 @@ export function registerRoutes(app) {
       );
       const opening = nonnegative(b.opening),
         actual_cash = safe(cashTotal(allowed, b.counts)),
-        actual_sinpe =
-          b.actual_sinpe == null ? null : nonnegative(b.actual_sinpe),
-        actual_card = b.actual_card == null ? null : nonnegative(b.actual_card);
+        // Older clients may send these fields; only the recorded payments determine them.
+        actual_sinpe = safe(data.collected.sinpe + data.movements.sinpe),
+        actual_card = safe(data.collected.card + data.movements.card);
       const expected = safe(
           opening + data.collected.cash + data.movements.cash,
         ),
         difference = safe(actual_cash - expected);
-      const differences = [
-        difference,
-        ...["sinpe", "card"].map((m) =>
-          (m === "sinpe" ? actual_sinpe : actual_card) == null
-            ? 0
-            : (m === "sinpe" ? actual_sinpe : actual_card) -
-              data.collected[m] -
-              data.movements[m],
-        ),
-      ];
       check(
-        (!differences.some((n) => n !== 0) && !data.unclassified) ||
-          b.note.length >= 3,
+        (difference === 0 && !data.unclassified) || b.note.length >= 3,
         "Añade una observación para guardar un cierre con diferencias o pagos sin clasificar",
       );
       if (b.supersedes) {

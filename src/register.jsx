@@ -54,7 +54,7 @@ function Reconciliation({ data, opening, actual }) {
           <tr>
             <th>Medio</th>
             <th>Esperado</th>
-            <th>Contado / verificado</th>
+            <th>Contado / calculado</th>
             <th>Diferencia</th>
           </tr>
         </thead>
@@ -68,19 +68,33 @@ function Reconciliation({ data, opening, actual }) {
               <tr key={m}>
                 <td>{methodNames[m]}</td>
                 <td>{money(expected)}</td>
+                <td>{m === "cash" ? money(actual.cash) : money(expected)}</td>
                 <td>
-                  {actual[m] === null ? "Sin verificar" : money(actual[m])}
-                </td>
-                <td>
-                  {actual[m] === null
-                    ? "Pendiente"
-                    : difference(actual[m] - expected)}
+                  {m === "cash"
+                    ? difference(actual.cash - expected)
+                    : "Se suma al total"}
                 </td>
               </tr>
             );
           })}
         </tbody>
       </RecordTable>
+      <div className="closing-total">
+        <span>Total del cierre</span>
+        <strong>
+          {money(
+            actual.cash +
+              data.collected.sinpe +
+              data.movements.sinpe +
+              data.collected.card +
+              data.movements.card,
+          )}
+        </strong>
+      </div>
+      <p className="muted">
+        Solo se compara el efectivo contado. SINPE y tarjeta se suman
+        automáticamente según los movimientos registrados
+      </p>
     </section>
   );
 }
@@ -182,7 +196,7 @@ function SummaryDetails({ data, editable, onReverse }) {
       {data.unclassified > 0 && (
         <p className="notice">
           {data.unclassified} pagos no tienen medio de cobro registrado. El
-          esperado por medio está incompleto hasta verificarlos
+          esperado por medio está incompleto hasta asignarles un medio de pago
         </p>
       )}
       <p className="muted">
@@ -360,8 +374,6 @@ export function CashRegister() {
     [from, setFrom] = useState(""),
     [to, setTo] = useState(""),
     [opening, setOpening] = useState(""),
-    [sinpe, setSinpe] = useState(""),
-    [card, setCard] = useState(""),
     [note, setNote] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
@@ -420,8 +432,6 @@ export function CashRegister() {
     setOpening(
       previous ? units(previous.opening) : units(settings.data.opening_default),
     );
-    setSinpe(previous ? units(previous.actual_sinpe) : "");
-    setCard(previous ? units(previous.actual_card) : "");
     setNote("");
     if (previous)
       setCounts(
@@ -451,8 +461,8 @@ export function CashRegister() {
   }
   const actual = {
     cash: cashTotal(allValues, counts),
-    sinpe: sinpe.trim() === "" ? null : Math.round(Number(sinpe) * 100),
-    card: card.trim() === "" ? null : Math.round(Number(card) * 100),
+    sinpe: summary ? summary.collected.sinpe + summary.movements.sinpe : 0,
+    card: summary ? summary.collected.card + summary.movements.card : 0,
   };
   const openAmount = opening === "" ? null : Math.round(Number(opening) * 100);
   const changeScope = (value) => {
@@ -711,8 +721,6 @@ export function CashRegister() {
                     counts: Object.fromEntries(
                       allValues.map((v) => [v, cashQuantity(counts[v])]),
                     ),
-                    actual_sinpe: sinpe.trim() === "" ? null : sinpe,
-                    actual_card: card.trim() === "" ? null : card,
                     note,
                     supersedes: revising?.id || null,
                     confirmed: true,
@@ -731,31 +739,6 @@ export function CashRegister() {
                   hint="Dinero que ya había antes de los cobros. Indica 0 solo si empezaste sin efectivo"
                 />
                 <CashCounter counts={counts} onChange={setCounts} embedded />
-                <div className="form-grid">
-                  <Field
-                    label="SINPE verificado en el intervalo (₡)"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="Sin verificar"
-                    value={sinpe}
-                    onChange={(e) => setSinpe(e.target.value)}
-                  />
-                  <Field
-                    label="Tarjeta verificada en el intervalo (₡)"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="Sin verificar"
-                    value={card}
-                    onChange={(e) => setCard(e.target.value)}
-                  />
-                </div>
-                <p className="muted">
-                  Consulta los cobros del intervalo en el banco o la terminal.
-                  No escribas el saldo completo de la cuenta. Dejar vacío
-                  significa que aún no lo verificaste
-                </p>
                 {openAmount !== null && actual.cash !== null && (
                   <Reconciliation
                     data={summary}
@@ -771,7 +754,7 @@ export function CashRegister() {
                   <textarea
                     value={note}
                     maxLength={1000}
-                    placeholder="Explica diferencias o pagos que quedan por verificar"
+                    placeholder="Explica diferencias o pagos sin medio de pago"
                     onChange={(e) => setNote(e.target.value)}
                   />
                 </Field>
@@ -844,8 +827,12 @@ export function CashRegister() {
             opening={selected.opening}
             actual={{
               cash: selected.actual_cash,
-              sinpe: selected.actual_sinpe,
-              card: selected.actual_card,
+              sinpe:
+                selected.snapshot.collected.sinpe +
+                selected.snapshot.movements.sinpe,
+              card:
+                selected.snapshot.collected.card +
+                selected.snapshot.movements.card,
             }}
           />
           <p>Fondo inicial: {money(selected.opening)}</p>

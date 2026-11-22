@@ -117,7 +117,7 @@ export async function seedDemo() {
       for (let i = 0; i < (team ? 12 : 48); i++) {
         const p = await one(
           db,
-          "INSERT INTO products(group_id,name,description,price,available,created_at) VALUES($1,$2,$3,$4,50,$5) RETURNING *",
+          "INSERT INTO products(group_id,name,description,price,available,created_at,purchase_cost,profit_percent) VALUES($1,$2,$3,$4::bigint,50,$5,$4::bigint*4/5,25) RETURNING *",
           [
             group.id,
             products[i % 24] + (i >= 24 ? " Plus" : ""),
@@ -226,7 +226,7 @@ export async function seedDemo() {
           );
           if (pending) {
             await db.query(
-              "INSERT INTO price_requests(purchase_id,requester_id,version,price,reason) VALUES($1,$2,1,$3,'Descuento ficticio por revisar')",
+              "INSERT INTO price_requests(purchase_id,requester_id,version,price,reason,discount_percent) VALUES($1,$2,1,$3,'Descuento ficticio por revisar',10)",
               [purchase.id, actor.id, price],
             );
             await notify(

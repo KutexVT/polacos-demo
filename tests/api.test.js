@@ -58,11 +58,19 @@ async function newClient(cookie, name) {
   return ok(cookie, "/clients", { name });
 }
 async function buy(cookie, client, price, qty = 1, productId = product.id) {
+  const current = (await ok(cookie, "/products?limit=100")).items.find(
+    (p) => p.id === productId,
+  );
   return ok(cookie, "/purchases", {
     client_id: client.id,
     product_id: productId,
     quantity: qty,
-    price,
+    ...(price * 100 === current.price
+      ? {}
+      : {
+          discount_percent:
+            Math.round((1 - (price * 100) / current.price) * 10000) / 100,
+        }),
     plan,
     idempotency_key: randomUUID(),
   });
@@ -132,7 +140,8 @@ test("01 · Dos cupos reales, tercer perfil bloqueado y aislamiento inicial", as
   other = await login("other_" + suffix);
   product = await ok(owner, "/products", {
     name: "Refrigeradora",
-    price: 100000,
+    purchase_cost: 80000,
+    profit_percent: 25,
     available: 20,
   });
   c1 = await newClient(w1.cookie, "Ana Mora");
@@ -145,7 +154,7 @@ test("01 · Dos cupos reales, tercer perfil bloqueado y aislamiento inicial", as
       await request(
         other,
         "/products/" + product.id,
-        { price: 1, reason: "No" },
+        { purchase_cost: 1, profit_percent: 25, reason: "No" },
         "PATCH",
       )
     ).status,
@@ -179,7 +188,10 @@ test("02 · Reserva, rechazo, reenvío, aprobación vieja, cancelación idempote
   });
   stock = await getProduct();
   assert.equal(stock.reserved, 2);
-  await ok(w1.cookie, `/purchases/${p.id}/propose`, { price: 95000, plan });
+  await ok(w1.cookie, `/purchases/${p.id}/propose`, {
+    discount_percent: 5,
+    plan,
+  });
   assert.equal(
     (
       await request(owner, `/price-requests/${r.id}/decide`, {
@@ -229,7 +241,12 @@ test("03 · Confirmar reservas una sola vez y catálogo no reescribe compras", a
   await ok(
     owner,
     "/products/" + product.id,
-    { name: "Nombre nuevo", price: 120000, reason: "Actualizar catálogo" },
+    {
+      name: "Nombre nuevo",
+      purchase_cost: 96000,
+      profit_percent: 25,
+      reason: "Actualizar catálogo",
+    },
     "PATCH",
   );
   const old = await ok(w1.cookie, "/purchases/" + p.id);
@@ -238,14 +255,102 @@ test("03 · Confirmar reservas una sola vez y catálogo no reescribe compras", a
   await ok(
     owner,
     "/products/" + product.id,
-    { price: 100000, reason: "Restablecer precio" },
+    { purchase_cost: 80000, profit_percent: 25, reason: "Restablecer precio" },
     "PATCH",
   );
+});
+test("03b · Costo, porcentaje y ubicación opcional se conservan sin exponer costos al polaco", async () => {
+  const rounded = await ok(owner, "/products", {
+    name: "Zapatos de porcentaje",
+    purchase_cost: "10002",
+    profit_percent: "25",
+    available: 10,
+  });
+  assert.equal(rounded.price, 1250500);
+  assert.equal(rounded.purchase_cost, 1000200);
+  assert.equal(Number(rounded.profit_percent), 25);
+  const visible = (await ok(w1.cookie, "/products?limit=100")).items.find(
+    (x) => x.id === rounded.id,
+  );
+  assert.equal(visible.price, 1250500);
+  assert(!("purchase_cost" in visible));
+  assert(!("profit_percent" in visible));
+  for (const body of [
+    { name: "Falta costo", price: 10000, available: 1 },
+    {
+      name: "Porcentaje inválido",
+      purchase_cost: 10000,
+      profit_percent: 10001,
+      available: 1,
+    },
+  ])
+    assert.equal((await request(owner, "/products", body)).status, 400);
+  const c = await ok(w1.cookie, "/clients", {
+    name: "Cliente con ubicación",
+    address: "Dirección de ejemplo",
+    province: "Alajuela",
+    canton: "San Ramón",
+  });
+  await ok(
+    w1.cookie,
+    "/clients/" + c.id,
+    { notes: "Conservar ubicación" },
+    "PATCH",
+  );
+  const read = await ok(w1.cookie, "/clients/" + c.id);
+  assert.equal(read.province, "Alajuela");
+  assert.equal(read.canton, "San Ramón");
+  assert(
+    (
+      await ok(w1.cookie, "/clients?q=" + encodeURIComponent("San Ramón"))
+    ).items.some((x) => x.id === c.id),
+  );
+  assert.equal((await request(w2.cookie, "/clients/" + c.id)).status, 403);
+  const purchase = await ok(w1.cookie, "/purchases", {
+    client_id: c.id,
+    product_id: rounded.id,
+    quantity: 1,
+    discount_percent: "17.75",
+    plan,
+    idempotency_key: randomUUID(),
+  });
+  assert.equal(purchase.unit_price, 1028500);
+  assert.equal(purchase.status, "pending");
+  const r = (await ok(owner, "/price-requests?limit=100")).items.find(
+    (x) => x.purchase_id === purchase.id,
+  );
+  assert.equal(Number(r.discount_percent), 17.75);
+  assert.equal(r.price, purchase.unit_price);
+  assert.equal(
+    (
+      await request(w1.cookie, "/purchases", {
+        client_id: c.id,
+        product_id: rounded.id,
+        quantity: 1,
+        price: 1,
+        plan,
+        idempotency_key: randomUUID(),
+      })
+    ).status,
+    400,
+  );
+  await ok(
+    owner,
+    "/products/" + rounded.id,
+    { purchase_cost: 20000, profit_percent: 30, reason: "Nuevo catálogo" },
+    "PATCH",
+  );
+  assert.equal(
+    (await ok(w1.cookie, "/purchases/" + purchase.id)).unit_price,
+    1028500,
+  );
+  await ok(w1.cookie, "/purchases/" + purchase.id + "/cancel", {reason:"Finalizar caso de prueba"});
 });
 test("04 · Última unidad concurrente y compras idempotentes", async () => {
   const last = await ok(owner, "/products", {
     name: "Última unidad",
-    price: 10000,
+    purchase_cost: 8000,
+    profit_percent: 25,
     available: 1,
   });
   const result = await Promise.all(

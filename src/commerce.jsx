@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { percentageBasis, percentagePrice } from "../shared/pricing";
 import { PaymentMethods, paymentFromForm } from "./payment-methods";
 import { methods, methodNames } from "../shared/cash-count";
 import {
@@ -20,7 +21,16 @@ import {
 } from "lucide-react";
 import { ReviewRecord } from "./admin";
 import { useApp } from "./main";
-import { api, money, day, time, labels, id as newId } from "./api";
+import {
+  api,
+  money,
+  day,
+  time,
+  percent,
+  priceChange,
+  labels,
+  id as newId,
+} from "./api";
 import {
   Button,
   Field,
@@ -112,7 +122,13 @@ export function Clients() {
                 <Photo id={c.photo_id} name={c.name} />
                 <div className="client-identity">
                   <strong>{c.name}</strong>
-                  <span>{c.phone || c.address || "Sin datos de contacto"}</span>
+                  <span>
+                    {c.phone ||
+                      [c.address, c.canton, c.province]
+                        .filter(Boolean)
+                        .join(" · ") ||
+                      "Sin datos de contacto"}
+                  </span>
                 </div>
                 <div className="client-balance">
                   <small>Saldo pendiente</small>
@@ -211,6 +227,28 @@ function ClientForm({ client, onClose }) {
             defaultValue={client?.address}
           />
         </div>
+        <details
+          className="location-details"
+          open={client?.canton || client?.province ? true : undefined}
+        >
+          <summary>Ubicación detallada (opcional)</summary>
+          <div className="form-grid">
+            <Field
+              label="Provincia"
+              name="province"
+              maxLength={100}
+              autoComplete="address-level1"
+              defaultValue={client?.province}
+            />
+            <Field
+              label="Cantón"
+              name="canton"
+              maxLength={100}
+              autoComplete="address-level2"
+              defaultValue={client?.canton}
+            />
+          </div>
+        </details>
         <Field label="Notas">
           <textarea name="notes" rows="3" defaultValue={client?.notes} />
         </Field>
@@ -267,7 +305,11 @@ export function ClientDetail({ id }) {
             <div className="profile-strip">
               <Photo id={c.photo_id} name={c.name} size="large" />
               <div>
-                <strong>{c.address || "Sin dirección registrada"}</strong>
+                <strong>
+                  {[c.address, c.canton, c.province]
+                    .filter(Boolean)
+                    .join(" · ") || "Sin dirección registrada"}
+                </strong>
                 <p>{c.notes || "Sin notas"}</p>
                 <small>
                   Responsable:{" "}
@@ -444,7 +486,10 @@ export function PurchaseForm({ client, onClose }) {
     mode === "normal"
       ? (product?.price || 0) / 100
       : mode === "discount"
-        ? Math.round((product?.price || 0) * (1 - Number(discount) / 100)) / 100
+        ? (percentagePrice(
+            product?.price || 0,
+            -(percentageBasis(discount) ?? NaN),
+          ) || 0) / 100
         : Number(custom);
   return (
     <Modal wide title={"Nueva compra · " + client.name} onClose={onClose}>
@@ -462,7 +507,11 @@ export function PurchaseForm({ client, onClose }) {
               client_id: client.id,
               product_id: productId,
               quantity: Number(quantity),
-              price,
+              ...(mode === "discount"
+                ? { discount_percent: discount }
+                : mode === "custom"
+                  ? { price }
+                  : {}),
               plan,
               idempotency_key: key,
             },
@@ -504,7 +553,9 @@ export function PurchaseForm({ client, onClose }) {
           <Field label="Precio">
             <select value={mode} onChange={(e) => setMode(e.target.value)}>
               <option value="normal">Precio del catálogo</option>
-              <option value="custom">Otro precio unitario</option>
+              {a.manager && (
+                <option value="custom">Otro precio unitario</option>
+              )}
               <option value="discount">Porcentaje de descuento</option>
             </select>
           </Field>
@@ -532,6 +583,11 @@ export function PurchaseForm({ client, onClose }) {
             />
           )}
         </div>
+        {mode === "discount" && discount !== "" && (
+          <p className="price-change">
+            {percent(discount)} de descuento solicitado
+          </p>
+        )}
         <div className="total-line">
           <span>
             {quantity} × {money(Math.round(price * 100))}
@@ -606,6 +662,20 @@ export function Inventory() {
                 <div className="product-card-body">
                   <h2>{p.name}</h2>
                   {p.description && <p>{p.description}</p>}
+                  {a.manager && (
+                    <div className="product-cost">
+                      {p.purchase_cost == null ? (
+                        <span>Costo pendiente</span>
+                      ) : (
+                        <>
+                          <strong>
+                            {percent(p.profit_percent)} de ganancia
+                          </strong>
+                          <span>Compra: {money(p.purchase_cost)}</span>
+                        </>
+                      )}
+                    </div>
+                  )}
                   <div className="product-price">
                     <small>Precio unitario</small>
                     <strong>{money(p.price)}</strong>
@@ -686,11 +756,28 @@ export function Inventory() {
 }
 function ProductForm({ product: p, onClose }) {
   const a = useApp();
+  const [cost, setCost] = useState(
+    p?.purchase_cost == null ? "" : String(p.purchase_cost / 100),
+  );
+  const [profit, setProfit] = useState(p?.profit_percent ?? "");
+  const entered = cost !== "" || profit !== "";
+  const price =
+    !entered && p
+      ? p.price
+      : percentagePrice(
+          Math.round(Number(cost) * 100),
+          percentageBasis(profit) ?? NaN,
+        );
   return (
     <Modal title={p ? "Editar producto" : "Nuevo producto"} onClose={onClose}>
       <Form
+        disabled={price == null}
         onSubmit={async (b) => {
           b.image_id = b.image_id || null;
+          if (!entered) {
+            delete b.purchase_cost;
+            delete b.profit_percent;
+          }
           if (!p) b.group_id = a.group || undefined;
           await api(p ? "/products/" + p.id : "/products", {
             method: p ? "PATCH" : "POST",
@@ -707,13 +794,26 @@ function ProductForm({ product: p, onClose }) {
         </Field>
         <div className="form-grid">
           <Field
-            label="Precio unitario (₡)"
-            name="price"
+            label="Precio de compra (₡)"
+            name="purchase_cost"
             type="number"
             min="0.01"
+            max="10000000000"
             step="0.01"
-            required
-            defaultValue={p ? p.price / 100 : ""}
+            required={!p || entered}
+            value={cost}
+            onChange={(e) => setCost(e.target.value)}
+          />
+          <Field
+            label="Ganancia sobre el costo (%)"
+            name="profit_percent"
+            type="number"
+            min="0"
+            max="10000"
+            step="0.01"
+            required={!p || entered}
+            value={profit}
+            onChange={(e) => setProfit(e.target.value)}
           />
           <Field
             label="Unidades disponibles"
@@ -725,6 +825,19 @@ function ProductForm({ product: p, onClose }) {
             defaultValue={p?.available ?? 0}
           />
         </div>
+        <div className="pricing-result" aria-live="polite">
+          <span>Precio de venta</span>
+          <strong>
+            {price == null ? "Completa el costo y el porcentaje" : money(price)}
+          </strong>
+          <small>Redondeado al múltiplo de ₡5 más cercano</small>
+        </div>
+        {p?.purchase_cost == null && p && (
+          <p className="muted">
+            Costo pendiente. Puedes completar estos datos sin modificar las
+            compras anteriores
+          </p>
+        )}
         {p && (
           <>
             <ReviewRecord groupId={p.group_id} />
@@ -806,6 +919,14 @@ export function PurchaseDetail({ id }) {
             {["pending", "decision"].includes(p.status) ? (
               <div className="pending-panel">
                 <h2>{labels[p.status]}</h2>
+                <p className="price-change">
+                  {priceChange(
+                    p.original_price,
+                    p.unit_price,
+                    p.requests.find((r) => r.version === p.version)
+                      ?.discount_percent,
+                  )}
+                </p>
                 <p>
                   {p.quantity} unidades reservadas · Precio propuesto:{" "}
                   {money(p.unit_price)} · Total: {money(p.ledger.total)}
@@ -1221,10 +1342,23 @@ function PaymentForm({ p, onClose }) {
 function ResolvePurchase({ p, mode, onClose }) {
   const a = useApp(),
     [plan, setPlan] = useState(p.plan),
-    [price, setPrice] = useState(
-      (mode === "original" ? p.original_price : p.unit_price) / 100,
+    [discount, setDiscount] = useState(
+      p.requests.find((r) => r.version === p.version)?.discount_percent ??
+        Math.max(
+          0,
+          Math.round(
+            ((p.original_price - p.unit_price) * 10000) / p.original_price,
+          ) / 100,
+        ),
     ),
     [ready, setReady] = useState(false);
+  const price =
+    (mode === "original"
+      ? p.original_price
+      : percentagePrice(
+          p.original_price,
+          -(percentageBasis(discount) ?? NaN),
+        ) || 0) / 100;
   return (
     <Modal
       title={
@@ -1240,7 +1374,10 @@ function ResolvePurchase({ p, mode, onClose }) {
         onSubmit={async () => {
           await api(`/purchases/${p.id}/${mode}`, {
             method: "POST",
-            body: { plan, ...(mode === "propose" ? { price } : {}) },
+            body: {
+              plan,
+              ...(mode === "propose" ? { discount_percent: discount } : {}),
+            },
           });
           a.refresh();
           onClose();
@@ -1248,16 +1385,23 @@ function ResolvePurchase({ p, mode, onClose }) {
       >
         {mode === "propose" ? (
           <Field
-            label="Precio unitario propuesto (₡)"
+            label="Descuento (%)"
             type="number"
-            min="0.01"
+            min="0"
+            max="99.99"
             step="0.01"
             required
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
+            value={discount}
+            onChange={(e) => setDiscount(e.target.value)}
           />
         ) : (
           <p>Precio original: {money(p.original_price)} por unidad</p>
+        )}
+        {mode === "propose" && (
+          <p className="price-change">
+            {percent(discount)} de descuento · Precio por unidad:{" "}
+            {money(price * 100)}
+          </p>
         )}
         <PlanEditor value={plan} onChange={setPlan} />
         <Preview

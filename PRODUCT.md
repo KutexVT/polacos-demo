@@ -15,3 +15,6 @@ La confirmación del servidor precede al éxito visual. Historia de pagos correg
 
 ## Caja
 Cada polaco cierra solo los cobros que registró y puede enviar el cierre al dueño. El dueño elige sus propios cobros o todo el equipo y revisa los cierres recibidos con una nota. El administrador de plataforma no accede a cajas ni cierres. Contador independiente de billetes/monedas con el mismo funcionamiento de Bar Chana. Medios separados: efectivo, SINPE, tarjeta y mixto; los pagos anteriores sin medio permanecen sin clasificar. Cierres congelados, revisiones y contrapartidas trazables.
+
+## Precios y ubicación
+Los productos nuevos requieren costo de compra y ganancia porcentual sobre ese costo. La venta se redondea al múltiplo de ₡5 más cercano con empates hacia arriba. El polaco solicita descuentos porcentuales sobre el catálogo; el dueño ve porcentaje e importes. Costos históricos desconocidos permanecen pendientes. Cambiar el catálogo no altera compras pactadas. Provincia y cantón son datos opcionales del cliente. Las notificaciones muestran fecha y hora de Costa Rica. En caja solo se verifica efectivo; SINPE y tarjeta calculados se incluyen en el total.

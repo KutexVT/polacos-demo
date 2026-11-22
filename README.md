@@ -70,3 +70,7 @@ curl --fail https://polacos-demo-production.up.railway.app/api/health
 El Dockerfile compila y ejecuta como usuario sin privilegios. Antes de atender aplica migraciones y siembra. La configuración parcial de `.railway/railway.ts` conserva los secretos existentes con `preserve()`. Los secretos nunca van en argumentos, código ni GitHub.
 
 La publicación usa `railway up`; el repositorio de GitHub conserva el código. Verificar `SUCCESS`, salud, assets y los tres accesos después de desplegar. [Operación](docs/OPERACION.md), [administración](docs/ADMINISTRACION.md) y [caja](docs/CAJA.md).
+
+## Precios, ubicación y cierre
+
+Productos nuevos: `purchase_cost` en colones y `profit_percent` como porcentaje sobre costo. El servidor calcula venta redondeada a ₡5. Los polacos solicitan descuentos con `discount_percent` sobre catálogo; el dueño ve porcentaje e importes. Los costos antiguos desconocidos quedan pendientes. Clientes admiten `province` y `canton` opcionales. Las notificaciones muestran fecha y hora de Costa Rica. El cierre verifica solo efectivo y suma SINPE y tarjeta calculados; el contador independiente conserva su funcionamiento.

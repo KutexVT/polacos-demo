@@ -20,7 +20,7 @@ import {
 
 import { useApp } from "./main";
 import { Heading } from "./commerce";
-import { api, money, day, time, labels, id as newId } from "./api";
+import { api, money, priceChange, day, time, labels, id as newId } from "./api";
 import {
   Button,
   Field,
@@ -141,6 +141,13 @@ export function Requests() {
                     <p>
                       {r.client_name} · {r.quantity} unidades · Solicitado por{" "}
                       {r.requester_name}
+                    </p>
+                    <p className="price-change">
+                      {priceChange(
+                        r.original_price,
+                        r.price,
+                        r.discount_percent,
+                      )}
                     </p>
                     <div className="price-comparison">
                       <span>
@@ -345,6 +352,9 @@ function Approve({ r, onClose }) {
     [ready, setReady] = useState(false);
   return (
     <Modal wide title="Aprobar precio y calendario" onClose={onClose}>
+      <p className="price-change">
+        {priceChange(r.original_price, r.price, r.discount_percent)}
+      </p>
       <p>
         {r.client_name} · {r.quantity} × {money(r.price)} · Total{" "}
         {money(r.price * r.quantity)}

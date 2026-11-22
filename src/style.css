@@ -3321,6 +3321,62 @@ dialog::backdrop {
   }
 }
 
+.product-cost {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+}
+.product-cost strong,
+p.price-change {
+  color: var(--accent);
+  font-size: 17px;
+  font-weight: 600;
+}
+.product-cost span {
+  color: var(--muted);
+  font-size: 14px;
+}
+.pricing-result {
+  display: grid;
+  gap: 8px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+  margin-top: 20px;
+}
+.pricing-result strong {
+  font-size: 24px;
+}
+.pricing-result small {
+  color: var(--muted);
+  font-size: 13px;
+}
+.location-details {
+  margin: 20px 0;
+}
+.location-details summary {
+  cursor: pointer;
+  padding: 12px 0;
+}
+.notification-time {
+  display: block;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+  margin-top: 12px;
+}
+.closing-total {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 20px;
+  margin-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.closing-total strong {
+  font-size: 22px;
+}
+
 /* The demo keeps the existing palette and only replaces the entry controls. */
 .demo-login .login-form {
   max-width: 540px;

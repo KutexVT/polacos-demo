@@ -337,3 +337,9 @@ Esta decisión reemplaza las funciones anteriores de soporte, notas y revisión 
 ## Copia pública de pruebas · 20 de noviembre de 2026
 
 Repositorio y proyecto Railway independientes. Se conserva la aplicación actual y sus colores. Entrada con tres botones: Administrador con sus credenciales existentes, Dueño y Polaco sin contraseña. Se llena con datos ficticios y se conservan las ediciones. Gestión Neutral sirve de referencia para la entrada por perfil, no para eliminar las paletas. No modificar el acceso ni los datos de la instalación original.
+
+## Cambio del 21 de noviembre de 2026: precios, ubicación, avisos y caja
+
+Vigente en original y demo. Los productos se dan de alta con precio de compra y porcentaje de ganancia sobre costo. Ejemplo: ₡10000 + 25% = ₡12500. Los precios calculados se redondean al múltiplo de ₡5 más cercano; los empates hacia arriba. Los descuentos solicitados por polacos se introducen como porcentaje del catálogo y se redondean igual. La solicitud del dueño prioriza el porcentaje sin ocultar importes. Se admiten hasta dos decimales de porcentaje. No se inventan costos históricos ni se actualizan precios de compras previas.
+
+Provincia y cantón son opcionales al crear o editar clientes. Cada notificación muestra fecha y hora. Solo el efectivo se verifica en cierres: SINPE y tarjeta se calculan y suman al total final. El contador independiente y las funciones de medios de pago conservan su comportamiento.

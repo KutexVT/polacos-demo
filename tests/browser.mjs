@@ -60,7 +60,10 @@ async function signIn(user, pw = password, checkPending = false) {
     try {
       for (const label of [/^Administrador/, /^Dueño /, /^Polaco /])
         assert(await page.getByRole("button", { name: label }).isDisabled());
-      await page.screenshot({ path: ".local/demo-admin-pending.png", fullPage: true });
+      await page.screenshot({
+        path: ".local/demo-admin-pending.png",
+        fullPage: true,
+      });
     } finally {
       resume();
     }
@@ -221,8 +224,25 @@ try {
     .click();
   await page.getByLabel("Nombre", { exact: true }).fill("Licuadora Oster");
   await page.getByLabel("Descripción").fill("Vaso de vidrio · 3 velocidades");
-  await page.getByLabel("Precio unitario (₡)").fill("100000");
+  await page.getByLabel("Precio de compra (₡)").fill("80000");
+  await page.getByLabel("Ganancia sobre el costo (%)").fill("25");
   await page.getByLabel("Unidades disponibles").fill("5");
+  await page.screenshot({
+    path: ".local/screenshots/product-percentage.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > innerWidth + 1,
+    ),
+    false,
+  );
+  await page.screenshot({
+    path: ".local/screenshots/product-percentage-mobile.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "Guardar", exact: true })
@@ -235,7 +255,16 @@ try {
   await page.getByLabel("Nombre o identificador").fill("Andrea Jiménez");
   await page.getByLabel("Responsable").selectOption(worker.id);
   await page.getByLabel("Teléfono", { exact: true }).fill("8888 1234");
-  await page.getByLabel("Dirección").fill("San Ramón · Centro");
+  await page.getByLabel("Dirección").fill("Centro");
+  await page
+    .getByText("Ubicación detallada (opcional)", { exact: true })
+    .click();
+  await page.getByLabel("Provincia", { exact: true }).fill("Alajuela");
+  await page.getByLabel("Cantón", { exact: true }).fill("San Ramón");
+  await page.screenshot({
+    path: ".local/screenshots/client-location.png",
+    fullPage: true,
+  });
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "Crear cliente", exact: true })
@@ -249,7 +278,8 @@ try {
           : `Producto cuadrícula ${i}`,
       description:
         "Descripción del producto con información suficiente para comprobar los saltos de línea",
-      price: 15000 * i,
+      purchase_cost: 12000 * i,
+      profit_percent: 25,
       available: 10 + i,
     });
     await api("/clients", {
@@ -281,8 +311,8 @@ try {
         .getByLabel("Producto", { exact: true })
         .selectOption({ index: 1 });
     });
-  await page.getByLabel("Precio", { exact: true }).selectOption("custom");
-  await page.getByLabel("Precio unitario (₡)").fill("90000");
+  await page.getByLabel("Precio", { exact: true }).selectOption("discount");
+  await page.getByLabel("Descuento (%)").fill("10");
   await page.getByLabel("Monto de la cuota (₡)").fill("10000");
   await page
     .getByRole("button", { name: "Ver calendario", exact: true })
@@ -298,7 +328,48 @@ try {
   const pendingId = new URL(page.url()).pathname.split("/")[2];
   await signOut();
   await signIn("browser_owner_" + suffix);
+  await page.goto(base + "/notifications");
+  await page.locator(".notification-time").first().waitFor();
+  const noticeTime = page.locator(".notification-time").first();
+  assert.match(
+    await noticeTime.textContent(),
+    /Fecha y hora:.*\d{4}.*\d{1,2}:\d{2}/,
+  );
+  assert(
+    Number.isFinite(Date.parse(await noticeTime.getAttribute("datetime"))),
+  );
+  await page.screenshot({
+    path: ".local/screenshots/notification-timestamp.png",
+    fullPage: true,
+    animations: "disabled",
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({
+    path: ".local/screenshots/notification-timestamp-mobile.png",
+    fullPage: true,
+    animations: "disabled",
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(base + "/requests");
+  await page.getByText("10% de descuento", { exact: true }).waitFor();
+  assert.equal(
+    await page
+      .locator(".request-row .price-change")
+      .first()
+      .evaluate((el) => getComputedStyle(el).fontSize),
+    "17px",
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({
+    path: ".local/screenshots/request-percentage-mobile.png",
+    fullPage: true,
+    animations: "disabled",
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.screenshot({
+    path: ".local/screenshots/request-percentage.png",
+    fullPage: true,
+  });
   await page.getByRole("button", { name: "Revisar y aprobar" }).click();
   await page
     .getByRole("button", { name: "Ver calendario", exact: true })
@@ -738,12 +809,23 @@ try {
   await page
     .getByLabel("Fondo inicial de este intervalo (₡)", { exact: true })
     .fill("0");
-  await page
-    .getByLabel("SINPE verificado en el intervalo (₡)", { exact: true })
-    .fill("500");
-  await page
-    .getByLabel("Tarjeta verificada en el intervalo (₡)", { exact: true })
-    .fill("0");
+  assert.equal(
+    await page
+      .getByLabel("SINPE verificado en el intervalo (₡)", { exact: true })
+      .count(),
+    0,
+  );
+  assert.equal(
+    await page
+      .getByLabel("Tarjeta verificada en el intervalo (₡)", { exact: true })
+      .count(),
+    0,
+  );
+  await page.getByText("Total del cierre", { exact: true }).waitFor();
+  await page.screenshot({
+    path: ".local/screenshots/closing-calculated.png",
+    fullPage: true,
+  });
   await page
     .getByRole("button", { name: "Revisar cierre de caja", exact: true })
     .click();

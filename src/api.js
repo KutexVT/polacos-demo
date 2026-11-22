@@ -37,6 +37,19 @@ export const money = (value) =>
     currency: "CRC",
     maximumFractionDigits: 2,
   }).format((value || 0) / 100);
+export const percent = (value) =>
+  new Intl.NumberFormat("es-CR", { maximumFractionDigits: 2 }).format(
+    Number(value),
+  ) + "%";
+export function priceChange(original, proposed, requested = null) {
+  const change =
+    requested == null
+      ? ((original - proposed) * 100) / original
+      : Number(requested);
+  return (
+    percent(Math.abs(change)) + (change < 0 ? " de aumento" : " de descuento")
+  );
+}
 export const day = (value) =>
   value
     ? new Intl.DateTimeFormat("es-CR", {

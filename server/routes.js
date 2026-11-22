@@ -1,4 +1,5 @@
 import { pool, tx, one, check, audit, notify } from "./db.js";
+import { percentageBasis, percentagePrice } from "../shared/pricing.js";
 import { paymentSchema, paymentMethodValues } from "./payment-methods.js";
 import { publicUser, hashPassword } from "./auth.js";
 import {
@@ -31,6 +32,8 @@ export const list = (rows, req) => {
         [
           r.name,
           r.phone,
+          r.canton,
+          r.province,
           r.client_name,
           r.product_name,
           r.username,
@@ -51,6 +54,33 @@ export const list = (rows, req) => {
     pages: Math.max(1, Math.ceil(filtered.length / limit)),
   };
 };
+function catalogPrice(cost, profit) {
+  const purchase_cost = cents(cost),
+    basis = percentageBasis(profit);
+  check(
+    basis !== null && basis <= 1000000,
+    "Indica una ganancia entre 0 y 10000% con hasta dos decimales",
+  );
+  const price = percentagePrice(purchase_cost, basis);
+  check(
+    price !== null,
+    "El precio calculado debe ser al menos ₡5 y estar dentro del límite permitido",
+  );
+  return { purchase_cost, profit_percent: basis / 100, price };
+}
+function discountPrice(original, value) {
+  const basis = percentageBasis(value);
+  check(
+    basis !== null && basis < 10000,
+    "Indica un descuento entre 0 y 99,99% con hasta dos decimales",
+  );
+  const price = percentagePrice(original, -basis);
+  check(
+    price !== null && price <= original,
+    "El redondeo debe producir un precio positivo que no supere el catálogo. Revisa el descuento",
+  );
+  return { price, discount: basis / 100 };
+}
 export function write(app, method, path, schema, fn) {
   app[method](path, async (req, res) => {
     const input = parse(schema, req);
@@ -377,7 +407,11 @@ export function routes(app) {
             "SELECT * FROM products WHERE deleted_at IS NULL AND ($1::uuid IS NULL OR group_id=$1) ORDER BY name",
             [gid],
           )
-        ).rows,
+        ).rows.map((p) => {
+          if (req.user.role !== "polaco") return p;
+          const { purchase_cost, profit_percent, ...visible } = p;
+          return visible;
+        }),
         req,
       ),
     );
@@ -390,7 +424,9 @@ export function routes(app) {
       group_id: uuid.optional(),
       name,
       description: text,
-      price: amount,
+      price: z.never().optional(),
+      purchase_cost: amount,
+      profit_percent: amount,
       available: z.coerce.number().int().min(0).max(1000000),
       image_id: uuid.nullable().optional(),
     }),
@@ -399,16 +435,19 @@ export function routes(app) {
       manager(u, gid);
       check(gid, "Elige un grupo");
       await ownFile(db, u, b.image_id);
+      const pricing = catalogPrice(b.purchase_cost, b.profit_percent);
       const p = await one(
         db,
-        "INSERT INTO products(group_id,name,description,price,available,image_id) VALUES($1,$2,$3,$4,$5,$6) RETURNING *",
+        "INSERT INTO products(group_id,name,description,price,available,image_id,purchase_cost,profit_percent) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *",
         [
           gid,
           b.name,
           b.description,
-          cents(b.price),
+          pricing.price,
           b.available,
           b.image_id || null,
+          pricing.purchase_cost,
+          pricing.profit_percent,
         ],
       );
       await db.query(
@@ -426,7 +465,9 @@ export function routes(app) {
     z.object({
       name: name.optional(),
       description: text.optional(),
-      price: amount.optional(),
+      price: z.never().optional(),
+      purchase_cost: amount.optional(),
+      profit_percent: amount.optional(),
       available: z.coerce.number().int().min(0).max(1000000).optional(),
       reason: z.string().min(1).max(500),
       image_id: uuid.nullable().optional(),
@@ -440,16 +481,26 @@ export function routes(app) {
       check(p, "Producto no disponible", 404);
       manager(u, p.group_id);
       if (b.image_id !== p.image_id) await ownFile(db, u, b.image_id);
+      check(
+        (b.purchase_cost === undefined) === (b.profit_percent === undefined),
+        "Indica el costo y el porcentaje juntos",
+      );
+      const pricing =
+        b.purchase_cost === undefined
+          ? p
+          : catalogPrice(b.purchase_cost, b.profit_percent);
       const r = await one(
         db,
-        "UPDATE products SET name=$2,description=$3,price=$4,available=$5,image_id=$6 WHERE id=$1 RETURNING *",
+        "UPDATE products SET name=$2,description=$3,price=$4,available=$5,image_id=$6,purchase_cost=$7,profit_percent=$8 WHERE id=$1 RETURNING *",
         [
           p.id,
           b.name ?? p.name,
           b.description ?? p.description,
-          b.price === undefined ? p.price : cents(b.price),
+          pricing.price,
           b.available ?? p.available,
           b.image_id === undefined ? p.image_id : b.image_id,
+          pricing.purchase_cost,
+          pricing.profit_percent,
         ],
       );
       if (b.available !== undefined && b.available !== p.available)
@@ -524,6 +575,8 @@ export function routes(app) {
       name,
       phone: z.string().max(40).default(""),
       address: z.string().max(1000).default(""),
+      canton: z.string().trim().max(100).default(""),
+      province: z.string().trim().max(100).default(""),
       notes: text,
       photo_id: uuid.nullable().optional(),
     }),
@@ -536,8 +589,18 @@ export function routes(app) {
       await ownFile(db, u, b.photo_id);
       const c = await one(
         db,
-        "INSERT INTO clients(group_id,owner_id,name,phone,address,notes,photo_id) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *",
-        [gid, owner, b.name, b.phone, b.address, b.notes, b.photo_id || null],
+        "INSERT INTO clients(group_id,owner_id,name,phone,address,notes,photo_id,canton,province) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *",
+        [
+          gid,
+          owner,
+          b.name,
+          b.phone,
+          b.address,
+          b.notes,
+          b.photo_id || null,
+          b.canton,
+          b.province,
+        ],
       );
       await audit(db, u, "client", c.id, "Crear cliente", null, c);
       return c;
@@ -562,6 +625,8 @@ export function routes(app) {
       name: name.optional(),
       phone: z.string().max(40).optional(),
       address: z.string().max(1000).optional(),
+      canton: z.string().trim().max(100).optional(),
+      province: z.string().trim().max(100).optional(),
       notes: text.optional(),
       photo_id: uuid.nullable().optional(),
     }),
@@ -570,7 +635,7 @@ export function routes(app) {
       if (b.photo_id !== c.photo_id) await ownFile(db, u, b.photo_id);
       const n = await one(
         db,
-        "UPDATE clients SET name=$2,phone=$3,address=$4,notes=$5,photo_id=$6 WHERE id=$1 RETURNING *",
+        "UPDATE clients SET name=$2,phone=$3,address=$4,notes=$5,photo_id=$6,canton=$7,province=$8 WHERE id=$1 RETURNING *",
         [
           c.id,
           b.name ?? c.name,
@@ -578,6 +643,8 @@ export function routes(app) {
           b.address ?? c.address,
           b.notes ?? c.notes,
           b.photo_id === undefined ? c.photo_id : b.photo_id,
+          b.canton ?? c.canton,
+          b.province ?? c.province,
         ],
       );
       await audit(db, u, "client", c.id, "Editar cliente", c, n);
@@ -646,6 +713,7 @@ export function routes(app) {
       product_id: uuid,
       quantity: z.coerce.number().int().min(1).max(1000000),
       price: amount.optional(),
+      discount_percent: amount.optional(),
       plan,
       idempotency_key: key,
     }),
@@ -675,7 +743,23 @@ export function routes(app) {
         [b.product_id, c.group_id],
       );
       check(product, "Producto no disponible");
-      const price = b.price === undefined ? product.price : cents(b.price);
+      check(
+        b.price === undefined || u.role === "owner",
+        "Indica el descuento en porcentaje",
+      );
+      check(
+        b.price === undefined || b.discount_percent === undefined,
+        "Elige precio o descuento, no ambos",
+      );
+      const discounted =
+        b.discount_percent === undefined
+          ? null
+          : discountPrice(product.price, b.discount_percent);
+      const price = discounted
+        ? discounted.price
+        : b.price === undefined
+          ? product.price
+          : cents(b.price);
       const pending = u.role === "polaco" && price !== product.price;
       const schedule = makeSchedule(price * b.quantity, b.plan);
       const p = await one(
@@ -700,8 +784,8 @@ export function routes(app) {
       await stock(db, u, p, pending ? "reserve" : "assign");
       if (pending) {
         await db.query(
-          "INSERT INTO price_requests(purchase_id,requester_id,version,price) VALUES($1,$2,1,$3)",
-          [p.id, u.id, price],
+          "INSERT INTO price_requests(purchase_id,requester_id,version,price,discount_percent) VALUES($1,$2,1,$3,$4)",
+          [p.id, u.id, price, discounted?.discount ?? null],
         );
         const owner = await one(
           db,
@@ -757,7 +841,7 @@ export function routes(app) {
     app,
     "post",
     "/api/purchases/:id/propose",
-    z.object({ price: amount, plan }),
+    z.object({ discount_percent: amount, plan }),
     async (db, u, b, req) => {
       const p = await getPurchase(db, u, req.params.id, true);
       check(
@@ -765,7 +849,10 @@ export function routes(app) {
         "Solo se proponen precios antes de confirmar",
         409,
       );
-      const price = cents(b.price);
+      const { price, discount } = discountPrice(
+        p.original_price,
+        b.discount_percent,
+      );
       const schedule = makeSchedule(price * p.quantity, b.plan);
       await db.query(
         "UPDATE price_requests SET status='cancelled',decided_at=now(),decided_by=$2 WHERE purchase_id=$1 AND status='pending'",
@@ -777,8 +864,8 @@ export function routes(app) {
         [p.id, price, b.plan, JSON.stringify(schedule)],
       );
       await db.query(
-        "INSERT INTO price_requests(purchase_id,requester_id,version,price) VALUES($1,$2,$3,$4)",
-        [p.id, u.id, n.version, price],
+        "INSERT INTO price_requests(purchase_id,requester_id,version,price,discount_percent) VALUES($1,$2,$3,$4,$5)",
+        [p.id, u.id, n.version, price, discount],
       );
       const owner = await one(
         db,

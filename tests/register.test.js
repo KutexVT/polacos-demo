@@ -118,7 +118,8 @@ test.before(async () => {
   other = await login("cash_other_" + suffix);
   const product = await ok(owner, "/products", {
     name: "Producto cierre",
-    price: 10000,
+    purchase_cost: 8000,
+    profit_percent: 25,
     available: 10,
   });
   async function buy(cookie, name) {
@@ -319,8 +320,8 @@ test("Caja 05 · Resumen congelado y reintentos idempotentes", async () => {
   closingBody = await draft(w1.cookie, "personal", {
     opening: 1000,
     counts: { 2000: 1, 1000: 1, 500: 1 },
-    actual_sinpe: 2000,
-    actual_card: 0,
+    actual_sinpe: 999999,
+    actual_card: 999999,
     note: "",
   });
   const simultaneous = await Promise.all([
@@ -329,6 +330,14 @@ test("Caja 05 · Resumen congelado y reintentos idempotentes", async () => {
   ]);
   assert.equal(simultaneous[0].id, simultaneous[1].id);
   closing = simultaneous[0];
+  assert.equal(
+    closing.actual_sinpe,
+    closing.snapshot.collected.sinpe + closing.snapshot.movements.sinpe,
+  );
+  assert.equal(
+    closing.actual_card,
+    closing.snapshot.collected.card + closing.snapshot.movements.card,
+  );
   assert.equal(closing.actual_cash, 350000);
   assert.equal(closing.expected_cash, 350000);
   assert.equal(closing.difference_cash, 0);

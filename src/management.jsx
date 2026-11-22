@@ -1193,7 +1193,9 @@ export function Notifications() {
                 <div>
                   <strong>{n.title}</strong>
                   <p>{n.body}</p>
-                  <small>{time(n.created_at)}</small>
+                  <time className="notification-time" dateTime={n.created_at}>
+                    Fecha y hora: {time(n.created_at)}
+                  </time>
                 </div>
                 <ArrowUpRight size={18} />
               </button>
